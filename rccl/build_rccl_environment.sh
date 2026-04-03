@@ -103,7 +103,7 @@ if [ -d "$BASE_DIR/hwloc" ]; then
     if [ -x ./autogen.sh ]; then
       ./autogen.sh || true
     fi
-    ./configure || true
+    ./configure --with-rocm=${ROCM_PATH} --disable-doxygen --disable-cairo || true
     make -j"$PARALLELISM" || true
     popd
 fi
@@ -135,7 +135,7 @@ if [ -d "$BASE_DIR/rccl" ]; then
     git checkout "$ROCM_VERSION" || { echo "Failed to checkout RCCL version $ROCM_VERSION"; exit 1; }
     # If RCCL provides an install script, use hipcc as CXX similar to original script
     if [ -x ./install.sh ]; then
-        CXX=hipcc srun ./install.sh --disable-msccl-kernel --fast || true
+        CXX=hipcc ./install.sh --disable-msccl-kernel --fast -j $PARALLELISM || true
     else
         echo "No install.sh; attempting make"
         make -j"$PARALLELISM" || true
