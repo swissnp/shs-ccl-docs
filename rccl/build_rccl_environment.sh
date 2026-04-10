@@ -82,10 +82,16 @@ Skip rccl-tests: $SKIP_TESTS
 EOF
 
 # Basic preflight
-if [ -z "$ROCM_PATH" ]; then
-    echo "Warning: ROCM_PATH is not set. Attempting to use /opt/$ROCM_VERSION"
-    export ROCM_PATH="/opt/$ROCM_VERSION"
+# Always force ROCM_PATH to match the requested ROCM_VERSION so that hwloc,
+# aws-ofi-nccl, and RCCL are all built against the same ROCm installation.
+# If ROCM_PATH is already set (e.g. from a loaded module) we override it to
+# avoid a version mismatch between the checked-out RCCL tag and the other
+# components.
+if [ -n "$ROCM_PATH" ] && [ "$ROCM_PATH" != "/opt/$ROCM_VERSION" ]; then
+    echo "Warning: Overriding ROCM_PATH from $ROCM_PATH to /opt/$ROCM_VERSION to match ROCM_VERSION=$ROCM_VERSION"
 fi
+export ROCM_PATH="/opt/$ROCM_VERSION"
+echo "ROCM_PATH: $ROCM_PATH"
 
 if [ -z "$MPICH_DIR" ]; then
     echo "Note: MPICH_DIR not set; rccl-tests and MPI builds may need MPI_HOME provided via environment."
