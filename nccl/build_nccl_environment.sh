@@ -11,7 +11,7 @@ set -o pipefail
 BASE_DIR=$(pwd)
 LIBFABRIC_PATH="/opt/cray/libfabric/1.22.0"
 PARALLELISM=16
-NCCL_VERSION="v2.27.7-1"
+NCCL_VERSION="593de54e52679b51428571c13271e2ea9f91b1b1"
 AWS_OFI_NCCL_VERSION="v1.19.0"
 SKIP_CLONE=false
 SKIP_TESTS=false
@@ -25,7 +25,7 @@ usage() {
     echo "  -b, --base-dir <path>         Base directory for builds (default: current directory)"
     echo "  -l, --libfabric-path <path>   Path to libfabric (default: $LIBFABRIC_PATH)"
     echo "  -p, --parallelism <threads>   Number of threads for parallel builds (default: $PARALLELISM)"
-    echo "  -n, --nccl-version <version>  NCCL version to build (default: $NCCL_VERSION)"
+    echo "  -n, --nccl-version <ref>      NCCL git ref to build (tag, branch, or commit; default: $NCCL_VERSION)"
     echo "  -a, --aws-version <version>   AWS OFI NCCL plugin version to build (default: $AWS_OFI_NCCL_VERSION)"
     echo "  --log-dir <path>              Directory to save the build log file (default: <base-dir>/logs)"
     echo "  --skip-clone                  Skip cloning repositories (use existing directories)"
@@ -106,7 +106,8 @@ if [ "$SKIP_CLONE" = false ]; then
     fi
 fi
 cd nccl
-git checkout "$NCCL_VERSION" || { echo "Failed to checkout NCCL version $NCCL_VERSION"; exit 1; }
+git rev-parse --verify "${NCCL_VERSION}^{commit}" >/dev/null 2>&1 || git fetch --tags --quiet || { echo "Failed to fetch NCCL refs"; exit 1; }
+git checkout "$NCCL_VERSION" || { echo "Failed to checkout NCCL ref $NCCL_VERSION"; exit 1; }
 make -j "$PARALLELISM" || { echo "Failed to build NCCL"; exit 1; }
 cd ..
 
