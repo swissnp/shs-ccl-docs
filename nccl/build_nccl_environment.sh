@@ -15,7 +15,8 @@ NCCL_VERSION="593de54e52679b51428571c13271e2ea9f91b1b1"
 AWS_OFI_NCCL_VERSION="v1.19.0"
 SKIP_CLONE=false
 SKIP_TESTS=false
-LOG_DIR="$BASE_DIR/logs"
+LOG_DIR=""
+NCCL_SRC_DIR=""
 
 # Help
 usage() {
@@ -55,6 +56,14 @@ while true; do
     esac
 done
 
+if [ -z "$LOG_DIR" ]; then
+    LOG_DIR="$BASE_DIR/logs"
+fi
+
+if [ -z "$NCCL_SRC_DIR" ]; then
+    NCCL_SRC_DIR="$BASE_DIR/nccl-src"
+fi
+
 
 TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
 LOG_FILE="${LOG_DIR}/build_${TIMESTAMP}.log"
@@ -68,7 +77,7 @@ echo "============================="
 echo "Build log: $LOG_FILE"
 echo "============================="
 
-NCCL_HOME="$BASE_DIR/nccl/build"
+NCCL_HOME="$NCCL_SRC_DIR/build"
 AWS_OFI_NCCL_HOME="$BASE_DIR/aws-ofi-nccl/src/.libs"
 NCCL_TESTS_HOME="$BASE_DIR/nccl-tests/build"
 
@@ -76,6 +85,7 @@ echo "============================="
 echo "Starting NCCL environment setup..."
 echo "Base Directory: $BASE_DIR"
 echo "Log Directory: $LOG_DIR"
+echo "NCCL Source Directory: $NCCL_SRC_DIR"
 echo "Libfabric Path: $LIBFABRIC_PATH"
 echo "Parallelism: $PARALLELISM"
 echo "NCCL Version: $NCCL_VERSION"
@@ -101,12 +111,16 @@ fi
 # Clone and build NCCL
 if [ "$SKIP_CLONE" = false ]; then
     echo "Cloning and building NCCL..."
-    if [ ! -d "nccl" ]; then
-        git clone https://github.com/NVIDIA/nccl.git || { echo "Failed to clone NCCL repository"; exit 1; }
+    if [ ! -d "$NCCL_SRC_DIR" ]; then
+        git clone https://github.com/NVIDIA/nccl.git "$NCCL_SRC_DIR" || { echo "Failed to clone NCCL repository"; exit 1; }
     fi
 fi
-cd nccl
-git rev-parse --verify "${NCCL_VERSION}^{commit}" >/dev/null 2>&1 || git fetch --tags --quiet || { echo "Failed to fetch NCCL refs"; exit 1; }
+if [ ! -d "$NCCL_SRC_DIR/.git" ]; then
+    echo "Error: NCCL source directory $NCCL_SRC_DIR does not contain a git checkout. Re-run without --skip-clone or fix the directory."
+    exit 1
+fi
+cd "$NCCL_SRC_DIR"
+git rev-parse --verify "${NCCL_VERSION}^{commit}" >/dev/null 2>&1 || git fetch origin --tags --quiet || { echo "Failed to fetch NCCL refs"; exit 1; }
 git checkout "$NCCL_VERSION" || { echo "Failed to checkout NCCL ref $NCCL_VERSION"; exit 1; }
 make -j "$PARALLELISM" || { echo "Failed to build NCCL"; exit 1; }
 cd ..
