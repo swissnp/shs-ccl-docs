@@ -16,6 +16,7 @@ PARALLELISM="${PARALLELISM:-$SLURM_CPUS_PER_TASK}"
 LIBFABRIC_PATH="${LIBFABRIC_PATH:-/opt/cray/libfabric/1.22.0}"
 NCCL_VERSION="${NCCL_VERSION:-593de54e52679b51428571c13271e2ea9f91b1b1}"
 AWS_VERSION="${AWS_VERSION:-v1.19.0}"
+SKIP_CLONE="${SKIP_CLONE:-true}"
 
 cd "$REPO_DIR"
 
@@ -23,12 +24,29 @@ module load cudatoolkit
 module load PrgEnv-cray
 module swap cray-mpich cray-mpich-abi
 
+if [ "$SKIP_CLONE" = "true" ]; then
+    for required_dir in "$BASE_DIR/nccl-src" "$BASE_DIR/aws-ofi-nccl"; do
+        if [ ! -d "$required_dir/.git" ]; then
+            echo "Missing pre-staged git checkout: $required_dir"
+            echo "Compute nodes are offline, so clone/fetch these repositories on a login node first."
+            exit 1
+        fi
+    done
+
+    if [ ! -d "$BASE_DIR/nccl-tests" ]; then
+        echo "Missing pre-staged source directory: $BASE_DIR/nccl-tests"
+        echo "Compute nodes are offline, so clone this repository on a login node first."
+        exit 1
+    fi
+fi
+
 ./nccl/build_nccl_environment.sh \
     --base-dir "$BASE_DIR" \
     --parallelism "$PARALLELISM" \
     --libfabric-path "$LIBFABRIC_PATH" \
     --nccl-version "$NCCL_VERSION" \
-    --aws-version "$AWS_VERSION"
+    --aws-version "$AWS_VERSION" \
+    $( [ "$SKIP_CLONE" = "true" ] && printf '%s' "--skip-clone" )
 
 echo
 echo "Build completed on compute node ${SLURMD_NODENAME:-unknown}."

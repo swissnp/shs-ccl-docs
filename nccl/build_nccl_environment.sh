@@ -69,6 +69,29 @@ AWS_OFI_CXX=${AWS_OFI_CXX:-CC}
 AWS_OFI_CFLAGS=${AWS_OFI_CFLAGS:-}
 AWS_OFI_CXXFLAGS=${AWS_OFI_CXXFLAGS:--Wno-error=vla-cxx-extension}
 
+ensure_local_git_ref() {
+    local repo_path="$1"
+    local ref="$2"
+    local repo_name="$3"
+
+    cd "$repo_path"
+
+    if git rev-parse --verify "${ref}^{commit}" >/dev/null 2>&1; then
+        git checkout "$ref" || { echo "Failed to checkout $repo_name ref $ref"; exit 1; }
+        return
+    fi
+
+    if [ "$SKIP_CLONE" = true ]; then
+        echo "Error: $repo_name ref $ref is not available in the local checkout at $repo_path."
+        echo "This run is in local-only mode (--skip-clone), which is required on offline compute nodes."
+        echo "Fetch the ref on a node with internet access, then resubmit the Slurm job."
+        exit 1
+    fi
+
+    git fetch origin --tags --quiet || { echo "Failed to fetch $repo_name refs"; exit 1; }
+    git checkout "$ref" || { echo "Failed to checkout $repo_name ref $ref"; exit 1; }
+}
+
 write_runtime_env_files() {
     local runtime_env_file="$BASE_DIR/setup_nccl_runtime_env.sh"
     local all_reduce_wrapper="$BASE_DIR/run_all_reduce_perf.sh"
@@ -153,9 +176,8 @@ if [ ! -d "$NCCL_SRC_DIR/.git" ]; then
     echo "Error: NCCL source directory $NCCL_SRC_DIR does not contain a git checkout. Re-run without --skip-clone or fix the directory."
     exit 1
 fi
+ensure_local_git_ref "$NCCL_SRC_DIR" "$NCCL_VERSION" "NCCL"
 cd "$NCCL_SRC_DIR"
-git rev-parse --verify "${NCCL_VERSION}^{commit}" >/dev/null 2>&1 || git fetch origin --tags --quiet || { echo "Failed to fetch NCCL refs"; exit 1; }
-git checkout "$NCCL_VERSION" || { echo "Failed to checkout NCCL ref $NCCL_VERSION"; exit 1; }
 make -j "$PARALLELISM" || { echo "Failed to build NCCL"; exit 1; }
 cd ..
 
@@ -166,8 +188,13 @@ if [ "$SKIP_CLONE" = false ]; then
         git clone https://github.com/aws/aws-ofi-nccl.git || { echo "Failed to clone AWS OFI NCCL repository"; exit 1; } && git -C aws-ofi-nccl fetch --tags --quiet
     fi
 fi
+if [ ! -d "aws-ofi-nccl/.git" ]; then
+    echo "Error: aws-ofi-nccl source directory $BASE_DIR/aws-ofi-nccl does not contain a git checkout."
+    echo "Populate it on a node with internet access, or re-run without --skip-clone from a node that can reach GitHub."
+    exit 1
+fi
+ensure_local_git_ref "$BASE_DIR/aws-ofi-nccl" "$AWS_OFI_NCCL_VERSION" "AWS OFI NCCL"
 cd aws-ofi-nccl
-git checkout "${AWS_OFI_NCCL_VERSION}" || { echo "Failed to checkout AWS OFI NCCL tag ${AWS_OFI_NCCL_VERSION}"; exit 1; }
 env LANG=C LC_ALL=C ./autogen.sh || { echo "Failed to run autogen.sh for AWS OFI NCCL"; exit 1; }
 # Run configure with a clean compiler environment so inherited flags do not
 # break Autoconf header checks such as limits.h on HPC systems.
@@ -182,6 +209,11 @@ if [ "$SKIP_TESTS" = false ]; then
     echo "Cloning and building NCCL Tests..."
     if [ "$SKIP_CLONE" = false ] && [ ! -d "nccl-tests" ]; then
         git clone https://github.com/NVIDIA/nccl-tests.git || { echo "Failed to clone NCCL Tests repository"; exit 1; }
+    fi
+    if [ ! -d "nccl-tests" ]; then
+        echo "Error: nccl-tests source directory $BASE_DIR/nccl-tests does not exist."
+        echo "Populate it on a node with internet access, or re-run without --skip-clone from a node that can reach GitHub."
+        exit 1
     fi
     cd nccl-tests
     # The nccl-tests/src Makefile needs NCCL_HOME to be set
