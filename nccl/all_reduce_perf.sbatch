@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=nccl-all-reduce
 #SBATCH -p gpu
-#SBATCH --nodes=1
+#SBATCH --nodes=2
 #SBATCH --ntasks-per-node=4
 #SBATCH --cpus-per-task=16
 #SBATCH --gpus-per-node=4
