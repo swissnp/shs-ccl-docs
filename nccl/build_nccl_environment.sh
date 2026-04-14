@@ -64,6 +64,9 @@ if [ -z "$NCCL_SRC_DIR" ]; then
     NCCL_SRC_DIR="$BASE_DIR/nccl-src"
 fi
 
+AWS_OFI_CC=${AWS_OFI_CC:-cc}
+AWS_OFI_CXX=${AWS_OFI_CXX:-CC}
+
 
 TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
 LOG_FILE="${LOG_DIR}/build_${TIMESTAMP}.log"
@@ -90,6 +93,8 @@ echo "Libfabric Path: $LIBFABRIC_PATH"
 echo "Parallelism: $PARALLELISM"
 echo "NCCL Version: $NCCL_VERSION"
 echo "AWS OFI NCCL Plugin Version: $AWS_OFI_NCCL_VERSION"
+echo "AWS OFI NCCL C Compiler: $AWS_OFI_CC"
+echo "AWS OFI NCCL C++ Compiler: $AWS_OFI_CXX"
 echo "Skip Cloning: $SKIP_CLONE"
 echo "Skip NCCL Tests: $SKIP_TESTS"
 echo "============================="
@@ -135,7 +140,11 @@ fi
 cd aws-ofi-nccl
 git checkout "${AWS_OFI_NCCL_VERSION}" || { echo "Failed to checkout AWS OFI NCCL tag ${AWS_OFI_NCCL_VERSION}"; exit 1; }
 ./autogen.sh || { echo "Failed to run autogen.sh for AWS OFI NCCL"; exit 1; }
-CC=gcc ./configure --with-libfabric="$LIBFABRIC_PATH" --with-cuda="$CUDA_HOME" --disable-picky-compiler || { echo "Failed to configure AWS OFI NCCL"; exit 1; }
+# Run configure with a clean compiler environment so inherited flags do not
+# break Autoconf header checks such as limits.h on HPC systems.
+env -u CPATH -u C_INCLUDE_PATH -u CPLUS_INCLUDE_PATH -u CPPFLAGS -u CFLAGS -u CXXFLAGS -u LDFLAGS \
+    CC="$AWS_OFI_CC" CXX="$AWS_OFI_CXX" CPP="$AWS_OFI_CC -E" \
+    ./configure --with-libfabric="$LIBFABRIC_PATH" --with-cuda="$CUDA_HOME" --disable-picky-compiler || { echo "Failed to configure AWS OFI NCCL"; exit 1; }
 make -j "$PARALLELISM" || { echo "Failed to build AWS OFI NCCL"; exit 1; }
 cd ..
 
