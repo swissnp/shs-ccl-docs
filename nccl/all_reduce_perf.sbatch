@@ -3,7 +3,7 @@
 #SBATCH -p gpu
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=4
-#SBATCH --cpus-per-task=72
+#SBATCH --cpus-per-task=16
 #SBATCH --gpus-per-node=4
 #SBATCH --time=00:15:00
 #SBATCH --output=nccl-all-reduce-%j.out
@@ -15,7 +15,7 @@ BASE_DIR="${BASE_DIR:-$REPO_DIR}"
 RUNTIME_ENV_FILE="${RUNTIME_ENV_FILE:-$BASE_DIR/setup_nccl_runtime_env.sh}"
 RUN_WRAPPER="${RUN_WRAPPER:-$BASE_DIR/run_all_reduce_perf.sh}"
 TASKS_PER_NODE="${TASKS_PER_NODE:-4}"
-CPUS_PER_TASK="${CPUS_PER_TASK:-72}"
+CPUS_PER_TASK="${CPUS_PER_TASK:-16}"
 MESSAGE_SIZE_BEGIN="${MESSAGE_SIZE_BEGIN:-8}"
 MESSAGE_SIZE_END="${MESSAGE_SIZE_END:-4G}"
 MESSAGE_SIZE_FACTOR="${MESSAGE_SIZE_FACTOR:-2}"
@@ -45,6 +45,9 @@ source "$RUNTIME_ENV_FILE"
 if [ "$SOURCE_CCL_ENV" = "true" ] || { [ "$SOURCE_CCL_ENV" = "auto" ] && [ "${SLURM_NNODES:-1}" -gt 1 ]; }; then
     source "$REPO_DIR/ccl_env.sh"
 fi
+
+echo "Running all_reduce_perf with $TASKS_PER_NODE tasks per node and $CPUS_PER_TASK CPUs per task."
+echo "Override with: sbatch --export=ALL,TASKS_PER_NODE=<gpus>,CPUS_PER_TASK=<cpus-per-rank> nccl/all_reduce_perf.sbatch"
 
 srun \
     --ntasks-per-node="$TASKS_PER_NODE" \
