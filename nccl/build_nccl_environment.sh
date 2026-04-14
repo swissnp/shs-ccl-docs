@@ -69,6 +69,31 @@ AWS_OFI_CXX=${AWS_OFI_CXX:-CC}
 AWS_OFI_CFLAGS=${AWS_OFI_CFLAGS:-}
 AWS_OFI_CXXFLAGS=${AWS_OFI_CXXFLAGS:--Wno-error=vla-cxx-extension}
 
+write_runtime_env_files() {
+    local runtime_env_file="$BASE_DIR/setup_nccl_runtime_env.sh"
+    local all_reduce_wrapper="$BASE_DIR/run_all_reduce_perf.sh"
+
+    cat > "$runtime_env_file" <<EOF
+#!/bin/bash
+# Source this file before running NCCL test binaries built by
+# build_nccl_environment.sh so they load the matching NCCL runtime.
+export NCCL_HOME="$NCCL_HOME"
+export AWS_OFI_NCCL_HOME="$AWS_OFI_NCCL_HOME"
+export NCCL_TESTS_HOME="$NCCL_TESTS_HOME"
+export LD_LIBRARY_PATH="$AWS_OFI_NCCL_HOME:$NCCL_HOME/lib:\${LD_LIBRARY_PATH}"
+export PATH="$NCCL_TESTS_HOME:\${PATH}"
+EOF
+    chmod +x "$runtime_env_file"
+
+    cat > "$all_reduce_wrapper" <<EOF
+#!/bin/bash
+set -e
+source "$runtime_env_file"
+exec "$NCCL_TESTS_HOME/all_reduce_perf" "\$@"
+EOF
+    chmod +x "$all_reduce_wrapper"
+}
+
 
 TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
 LOG_FILE="${LOG_DIR}/build_${TIMESTAMP}.log"
@@ -165,11 +190,16 @@ if [ "$SKIP_TESTS" = false ]; then
     cd ..
 fi
 
+write_runtime_env_files
+
 echo "============================="
 echo "Build completed successfully!"
 echo "============================="
 echo "NCCL_HOME: $NCCL_HOME"
 echo "AWS_OFI_NCCL_HOME: $AWS_OFI_NCCL_HOME"
 echo "NCCL_TESTS_HOME: $NCCL_TESTS_HOME"
+echo "Runtime environment file: $BASE_DIR/setup_nccl_runtime_env.sh"
+echo "all_reduce_perf wrapper: $BASE_DIR/run_all_reduce_perf.sh"
 echo "To verify installation, try running the NCCL tests: "
-echo "cd $NCCL_TESTS_HOME && srun --ntasks-per-node=4 --cpus-per-task=72 --gres=gpu:4 ./all_reduce_perf -b 8 -e 128M -f 2"
+echo "source $BASE_DIR/setup_nccl_runtime_env.sh"
+echo "srun --ntasks-per-node=4 --cpus-per-task=72 --gres=gpu:4 $BASE_DIR/run_all_reduce_perf.sh -b 8 -e 128M -f 2"
