@@ -74,10 +74,8 @@ ensure_local_git_ref() {
     local ref="$2"
     local repo_name="$3"
 
-    cd "$repo_path"
-
-    if git rev-parse --verify "${ref}^{commit}" >/dev/null 2>&1; then
-        git checkout "$ref" || { echo "Failed to checkout $repo_name ref $ref"; exit 1; }
+    if git -C "$repo_path" rev-parse --verify "${ref}^{commit}" >/dev/null 2>&1; then
+        git -C "$repo_path" checkout "$ref" || { echo "Failed to checkout $repo_name ref $ref"; exit 1; }
         return
     fi
 
@@ -88,8 +86,8 @@ ensure_local_git_ref() {
         exit 1
     fi
 
-    git fetch origin --tags --quiet || { echo "Failed to fetch $repo_name refs"; exit 1; }
-    git checkout "$ref" || { echo "Failed to checkout $repo_name ref $ref"; exit 1; }
+    git -C "$repo_path" fetch origin --tags --quiet || { echo "Failed to fetch $repo_name refs"; exit 1; }
+    git -C "$repo_path" checkout "$ref" || { echo "Failed to checkout $repo_name ref $ref"; exit 1; }
 }
 
 write_runtime_env_files() {
@@ -184,17 +182,17 @@ cd ..
 # Clone and build the AWS OFI NCCL plugin
 if [ "$SKIP_CLONE" = false ]; then
     echo "Cloning and building AWS OFI NCCL plugin..."
-    if [ ! -d "aws-ofi-nccl" ]; then
-        git clone https://github.com/aws/aws-ofi-nccl.git || { echo "Failed to clone AWS OFI NCCL repository"; exit 1; } && git -C aws-ofi-nccl fetch --tags --quiet
+    if [ ! -d "$BASE_DIR/aws-ofi-nccl" ]; then
+        git clone https://github.com/aws/aws-ofi-nccl.git "$BASE_DIR/aws-ofi-nccl" || { echo "Failed to clone AWS OFI NCCL repository"; exit 1; } && git -C "$BASE_DIR/aws-ofi-nccl" fetch --tags --quiet
     fi
 fi
-if [ ! -d "aws-ofi-nccl/.git" ]; then
+if [ ! -d "$BASE_DIR/aws-ofi-nccl/.git" ]; then
     echo "Error: aws-ofi-nccl source directory $BASE_DIR/aws-ofi-nccl does not contain a git checkout."
     echo "Populate it on a node with internet access, or re-run without --skip-clone from a node that can reach GitHub."
     exit 1
 fi
 ensure_local_git_ref "$BASE_DIR/aws-ofi-nccl" "$AWS_OFI_NCCL_VERSION" "AWS OFI NCCL"
-cd aws-ofi-nccl
+cd "$BASE_DIR/aws-ofi-nccl"
 env LANG=C LC_ALL=C ./autogen.sh || { echo "Failed to run autogen.sh for AWS OFI NCCL"; exit 1; }
 # Run configure with a clean compiler environment so inherited flags do not
 # break Autoconf header checks such as limits.h on HPC systems.
@@ -207,15 +205,15 @@ cd ..
 # Clone and build the NCCL Tests
 if [ "$SKIP_TESTS" = false ]; then
     echo "Cloning and building NCCL Tests..."
-    if [ "$SKIP_CLONE" = false ] && [ ! -d "nccl-tests" ]; then
-        git clone https://github.com/NVIDIA/nccl-tests.git || { echo "Failed to clone NCCL Tests repository"; exit 1; }
+    if [ "$SKIP_CLONE" = false ] && [ ! -d "$BASE_DIR/nccl-tests" ]; then
+        git clone https://github.com/NVIDIA/nccl-tests.git "$BASE_DIR/nccl-tests" || { echo "Failed to clone NCCL Tests repository"; exit 1; }
     fi
-    if [ ! -d "nccl-tests" ]; then
+    if [ ! -d "$BASE_DIR/nccl-tests" ]; then
         echo "Error: nccl-tests source directory $BASE_DIR/nccl-tests does not exist."
         echo "Populate it on a node with internet access, or re-run without --skip-clone from a node that can reach GitHub."
         exit 1
     fi
-    cd nccl-tests
+    cd "$BASE_DIR/nccl-tests"
     # The nccl-tests/src Makefile needs NCCL_HOME to be set
     echo NCCL_HOME = $NCCL_HOME
     make NCCL_HOME="$NCCL_HOME" MPI=1 MPI_HOME="$MPICH_DIR" -j "$PARALLELISM" || { echo "Failed to build NCCL Tests"; exit 1; }
