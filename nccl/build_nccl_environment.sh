@@ -132,6 +132,8 @@ NCCL_HOME="$NCCL_SRC_DIR/build"
 AWS_OFI_NCCL_HOME="$BASE_DIR/aws-ofi-nccl/src/.libs"
 NCCL_TESTS_HOME="$BASE_DIR/nccl-tests/build"
 
+write_runtime_env_files
+
 echo "============================="
 echo "Starting NCCL environment setup..."
 echo "Base Directory: $BASE_DIR"
@@ -219,8 +221,6 @@ if [ "$SKIP_TESTS" = false ]; then
     make NCCL_HOME="$NCCL_HOME" MPI=1 MPI_HOME="$MPICH_DIR" -j "$PARALLELISM" || { echo "Failed to build NCCL Tests"; exit 1; }
     cd ..
 fi
-
-write_runtime_env_files
 
 echo "============================="
 echo "Build completed successfully!"
