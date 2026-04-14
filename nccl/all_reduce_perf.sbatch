@@ -21,6 +21,9 @@ MESSAGE_SIZE_END="${MESSAGE_SIZE_END:-4G}"
 MESSAGE_SIZE_FACTOR="${MESSAGE_SIZE_FACTOR:-2}"
 EXTRA_ARGS="${EXTRA_ARGS:-}"
 SOURCE_CCL_ENV="${SOURCE_CCL_ENV:-auto}"
+NCCL_DEBUG_LEVEL="${NCCL_DEBUG_LEVEL:-WARN}"
+NCCL_CUMEM_ENABLE_VALUE="${NCCL_CUMEM_ENABLE_VALUE:-0}"
+NCCL_CUMEM_HOST_ENABLE_VALUE="${NCCL_CUMEM_HOST_ENABLE_VALUE:-0}"
 
 cd "$REPO_DIR"
 
@@ -41,13 +44,20 @@ if [ ! -x "$RUN_WRAPPER" ]; then
 fi
 
 source "$RUNTIME_ENV_FILE"
+export NCCL_DEBUG="$NCCL_DEBUG_LEVEL"
+export NCCL_CUMEM_ENABLE="$NCCL_CUMEM_ENABLE_VALUE"
+export NCCL_CUMEM_HOST_ENABLE="$NCCL_CUMEM_HOST_ENABLE_VALUE"
 
 if [ "$SOURCE_CCL_ENV" = "true" ] || { [ "$SOURCE_CCL_ENV" = "auto" ] && [ "${SLURM_NNODES:-1}" -gt 1 ]; }; then
     source "$REPO_DIR/ccl_env.sh"
+elif [ "${SLURM_NNODES:-1}" -eq 1 ]; then
+    # Single-node runs should not force the Libfabric transport.
+    unset NCCL_NET
 fi
 
 echo "Running all_reduce_perf with $TASKS_PER_NODE tasks per node and $CPUS_PER_TASK CPUs per task."
 echo "Override with: sbatch --export=ALL,TASKS_PER_NODE=<gpus>,CPUS_PER_TASK=<cpus-per-rank> nccl/all_reduce_perf.sbatch"
+echo "NCCL_DEBUG=$NCCL_DEBUG NCCL_CUMEM_ENABLE=$NCCL_CUMEM_ENABLE NCCL_CUMEM_HOST_ENABLE=$NCCL_CUMEM_HOST_ENABLE"
 
 srun \
     --ntasks-per-node="$TASKS_PER_NODE" \
